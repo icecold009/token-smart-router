@@ -1,0 +1,17 @@
+[
+  {
+    "task_id": "task-1",
+    "answer": "This was handled locally as a short definitional prompt to save tokens.",
+    "route": "local"
+  },
+  {
+    "task_id": "task-2",
+    "answer": "- Break the problem into smaller tasks\n- Build the smallest working version\n- Test one example locally\n- Improve only after it works",
+    "route": "local"
+  },
+  {
+    "task_id": "task-3",
+    "answer": "- Break the problem into smaller tasks\n- Build the smallest working version\n- Test one example locally\n- Improve only after it works",
+    "route": "local"
+  }
+]

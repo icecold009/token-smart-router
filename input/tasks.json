@@ -1,0 +1,5 @@
+[
+  { "id": "task-1", "prompt": "What is a stack?" },
+  { "id": "task-2", "prompt": "Make a bullet list for learning JavaScript" },
+  { "id": "task-3", "prompt": "Format this as a todo list" }
+]
