@@ -8,12 +8,37 @@ import { join } from "path";
 
 dotenv.config();
 
-console.log("Fireworks key loaded:", !!process.env.FIREWORKS_API_KEY);
-console.log("Key prefix:", process.env.FIREWORKS_API_KEY?.slice(0, 6));
-
 const app = express();
-app.use(cors());
+
+app.use(cors({ origin: process.env.ALLOWED_ORIGIN || "http://localhost:5173" }));
+
 app.use(express.json());
+
+const rateLimitMap = new Map();
+const RATE_LIMIT_MAX = 20;          // max requests
+const RATE_LIMIT_WINDOW_MS = 60_000; // per 60 seconds
+
+function rateLimiter(req, res, next) {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const now = Date.now();
+    const entry = rateLimitMap.get(ip);
+
+    if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+        // First request in this window, or window has expired — reset.
+        rateLimitMap.set(ip, { count: 1, windowStart: now });
+        return next();
+    }
+
+    if (entry.count >= RATE_LIMIT_MAX) {
+        return res.status(429).json({ error: "Too many requests. Please try again later." });
+    }
+
+    entry.count += 1;
+    return next();
+}
+
+// Apply rate limiter to the public-facing route endpoint only.
+app.use("/api/route", rateLimiter);
 
 const client = new OpenAI({
     apiKey: process.env.FIREWORKS_API_KEY,
@@ -77,6 +102,9 @@ app.post("/api/route", async (req, res) => {
         if (!prompt || !prompt.trim()) {
             return res.status(400).json({ error: "Prompt is required." });
         }
+        if (prompt.length > 2000) {
+            return res.status(400).json({ error: "Prompt must be 2000 characters or fewer." });
+        }
 
         const route = routePrompt(prompt);
 
@@ -117,13 +145,7 @@ app.post("/api/route", async (req, res) => {
         });
     } catch (error) {
         console.error("Full backend error:", error);
-
-        return res.status(500).json({
-            error:
-                error?.message ||
-                error?.response?.data?.error?.message ||
-                "Server error while processing the prompt."
-        });
+        return res.status(500).json({ error: "Server error processing request." });
     }
 });
 
@@ -169,10 +191,9 @@ app.post("/run-tasks", async (req, res) => {
         return res.json({ ok: true, count: results.length });
     } catch (err) {
         console.error("Task harness error:", err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: "Server error processing request." });
     }
 });
-
 
 app.listen(process.env.PORT || 3001, () => {
     console.log(`Server running on port ${process.env.PORT || 3001}`);
