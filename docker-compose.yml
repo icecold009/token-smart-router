@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./input:/input
+      - ./output:/output
+    environment:
+      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY}
+      - FIREWORKS_BASE_URL=${FIREWORKS_BASE_URL:-https://api.fireworks.ai/inference/v1}
+      - ALLOWED_MODELS=${ALLOWED_MODELS:-accounts/fireworks/models/llama-v3p1-8b-instruct}
+      - PORT=3001
