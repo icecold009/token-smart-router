@@ -3,6 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { join } from "path";
+
 dotenv.config();
 
 console.log("Fireworks key loaded:", !!process.env.FIREWORKS_API_KEY);
@@ -14,7 +17,7 @@ app.use(express.json());
 
 const client = new OpenAI({
     apiKey: process.env.FIREWORKS_API_KEY,
-    baseURL: "https://api.fireworks.ai/inference/v1",
+    baseURL: process.env.FIREWORKS_BASE_URL || "https://api.fireworks.ai/inference/v1",
 });
 
 function routePrompt(prompt) {
@@ -87,7 +90,9 @@ app.post("/api/route", async (req, res) => {
         }
 
         const response = await client.chat.completions.create({
-            model: "accounts/fireworks/models/gpt-oss-20b",
+            model: process.env.ALLOWED_MODELS
+                ? process.env.ALLOWED_MODELS.split(",")[0].trim()
+                : "accounts/fireworks/models/llama-v3p1-8b-instruct",
             messages: [
                 {
                     role: "system",
@@ -125,6 +130,49 @@ app.post("/api/route", async (req, res) => {
 app.get("/api/health", (req, res) => {
     res.json({ ok: true });
 });
+
+app.post("/run-tasks", async (req, res) => {
+    try {
+        const inputPath = process.env.TASK_INPUT_FILE || "/input/tasks.json";
+        const outputPath = process.env.TASK_OUTPUT_FILE || "/output/results.json";
+
+        const tasks = JSON.parse(readFileSync(inputPath, "utf-8"));
+        const results = [];
+
+        for (const task of tasks) {
+            const prompt = task.prompt || task.input || task.question || "";
+            const route = routePrompt(prompt);
+            let answer;
+
+            if (route === "local") {
+                answer = handleLocal(prompt).content;
+            } else {
+                const response = await client.chat.completions.create({
+                    model: process.env.ALLOWED_MODELS
+                        ? process.env.ALLOWED_MODELS.split(",")[0].trim()
+                        : "accounts/fireworks/models/llama-v3p1-8b-instruct",
+                    messages: [
+                        { role: "system", content: "You are a helpful project copilot. Give concise, practical answers." },
+                        { role: "user", content: prompt },
+                    ],
+                });
+                answer = response.choices?.[0]?.message?.content || "";
+            }
+
+            results.push({ task_id: task.id || task.task_id, answer, route });
+        }
+
+        const outputDir = outputPath.substring(0, outputPath.lastIndexOf("/"));
+        if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
+        writeFileSync(outputPath, JSON.stringify(results, null, 2));
+
+        return res.json({ ok: true, count: results.length });
+    } catch (err) {
+        console.error("Task harness error:", err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 
 app.listen(process.env.PORT || 3001, () => {
     console.log(`Server running on port ${process.env.PORT || 3001}`);
