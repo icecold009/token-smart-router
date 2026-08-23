@@ -1,58 +1,69 @@
 # Token Smart Router
 
-A Track 1 AI agent that routes prompts intelligently — simple prompts are handled locally, complex ones go to Fireworks AI — minimising unnecessary token usage.
+Token Smart Router is a small AI gateway that decides whether a prompt needs a remote model. Short, predictable tasks can be answered locally; complex reasoning and planning can be sent to Fireworks AI. The goal is straightforward: spend model tokens where they add value, while keeping the routing decision visible and easy to test.
+
+## How it works
+
+1. The React client submits a prompt to the local Express API.
+2. The router classifies the request by task shape and complexity.
+3. Local-friendly prompts are handled without an external model call.
+4. More involved prompts are sent to the configured Fireworks model.
+5. The response is returned to the UI with the selected route available for inspection.
+
+The task harness can also run a batch of prompts and write results to `output/results.json`.
 
 ## Prerequisites
-- Node.js 20+
-- Docker (for containerised run)
-- A [Fireworks AI](https://fireworks.ai) API key
 
-## Environment Variables
+- Node.js 20 or newer
+- Docker, if using the container workflow
+- A [Fireworks AI](https://fireworks.ai) API key for remote routing
 
-| Variable | Required | Description |
-|---|---|---|
-| `FIREWORKS_API_KEY` | ✅ | Your Fireworks AI API key |
-| `FIREWORKS_BASE_URL` | Optional | Defaults to `https://api.fireworks.ai/inference/v1` |
-| `ALLOWED_MODELS` | Optional | Comma-separated model list; first entry is used |
-| `PORT` | Optional | Server port (default: `3001`) |
+## Configuration
 
-Create a `.env` file at the root:
+Create a `.env` file in the repository root:
 
+| Variable | Required | Purpose |
+|---|---:|---|
+| `FIREWORKS_API_KEY` | Yes for remote routing | Fireworks credential |
+| `FIREWORKS_BASE_URL` | No | Defaults to `https://api.fireworks.ai/inference/v1` |
+| `ALLOWED_MODELS` | No | Comma-separated model allowlist; the first is selected |
+| `PORT` | No | Express port; defaults to `3001` |
 
-## Run with Docker (recommended)
+Keep `.env` local. The API key belongs on the server and must never be exposed in the Vite client bundle.
 
-```bash
-docker compose up --build
-```
-
-## Run locally (development)
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-The React UI is available at `http://localhost:5173`.  
-The Express API runs at `http://localhost:3001`.
+The React UI runs at <http://localhost:5173> and the Express API at <http://localhost:3001>.
 
-## Run the task harness (scoring mode)
-
-Place your tasks file at `./input/tasks.json`, then:
+## Run with Docker
 
 ```bash
 docker compose up --build
+```
+
+## Run the task harness
+
+Place a task file at `input/tasks.json`, then start the service and call:
+
+```bash
 curl -X POST http://localhost:3001/run-tasks
 ```
 
-Results are written to `./output/results.json`.
+Results are written to `output/results.json`.
 
-## How it works
+## Technology
 
-- **Local route**: Short definitional prompts, formatting/list tasks — answered instantly without an API call
-- **Fireworks route**: Complex reasoning and planning prompts — sent to the model specified in `ALLOWED_MODELS`
+- React and Vite
+- Express
+- Fireworks AI through the OpenAI-compatible SDK
+- Docker Compose for the container workflow
 
-## Stack
+## Honest limits
 
-- React + Vite (frontend)
-- Express (backend)
-- Fireworks AI via OpenAI-compatible SDK
+The local route is a deterministic optimisation, not a general-purpose language model. The remote route depends on Fireworks credentials, model availability, and network access. Add representative routing tests before using the router as a cost or latency guarantee in production.
+
