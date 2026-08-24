@@ -12,11 +12,14 @@ const app = express();
 
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || "http://localhost:5173" }));
 
-app.use(express.json());
+app.use(express.json({ limit: "16kb" }));
 
 const rateLimitMap = new Map();
 const RATE_LIMIT_MAX = 20;          // max requests
 const RATE_LIMIT_WINDOW_MS = 60_000; // per 60 seconds
+const MAX_OUTPUT_TOKENS = Math.max(64, Number(process.env.MAX_OUTPUT_TOKENS || 800));
+const MAX_OUTPUT_CHARS = Math.max(1000, Number(process.env.MAX_OUTPUT_CHARS || 12000));
+const PROVIDER_TIMEOUT_MS = Math.max(2_000, Number(process.env.PROVIDER_TIMEOUT_MS || 30_000));
 
 function rateLimiter(req, res, next) {
     const ip = req.ip || req.socket.remoteAddress || "unknown";
@@ -95,11 +98,64 @@ function handleLocal(prompt) {
     };
 }
 
+function modelName() {
+    return process.env.ALLOWED_MODELS
+        ? process.env.ALLOWED_MODELS.split(",")[0].trim()
+        : "accounts/fireworks/models/llama-v3p1-8b-instruct";
+}
+
+function boundedOutput(value) {
+    const output = String(value || "No response returned from Fireworks.");
+    return output.length > MAX_OUTPUT_CHARS
+        ? `${output.slice(0, MAX_OUTPUT_CHARS)}\n\n[Output truncated by server limit.]`
+        : output;
+}
+
+function failureDetails(error) {
+    const status = Number(error?.status || error?.response?.status || 0);
+    if (status === 429) return { code: "RATE_LIMITED", status: 429, retryable: true, message: "The model provider rate limit was reached." };
+    if (status === 401 || status === 403) return { code: "PROVIDER_AUTH", status: 502, retryable: false, message: "The model provider is not configured for this server." };
+    if (status === 408 || error?.name === "TimeoutError") return { code: "PROVIDER_TIMEOUT", status: 504, retryable: true, message: "The model provider took too long to respond." };
+    return { code: "PROVIDER_ERROR", status: 502, retryable: true, message: "The model provider could not complete the request." };
+}
+
+async function runFireworks(prompt) {
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+    }, PROVIDER_TIMEOUT_MS);
+    try {
+        const response = await client.chat.completions.create({
+            model: modelName(),
+            max_tokens: MAX_OUTPUT_TOKENS,
+            messages: [
+                { role: "system", content: "You are a helpful project copilot. Give concise, practical answers." },
+                { role: "user", content: prompt },
+            ],
+            signal: controller.signal,
+        });
+        return {
+            output: boundedOutput(response.choices?.[0]?.message?.content),
+            model: modelName(),
+            durationMs: Date.now() - startedAt,
+            usage: response.usage || null,
+        };
+    } catch (error) {
+        if (timedOut) throw Object.assign(new Error("The model provider timed out."), { name: "TimeoutError" });
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
 app.post("/api/route", async (req, res) => {
     try {
-        const { prompt } = req.body;
+        const { prompt } = req.body || {};
 
-        if (!prompt || !prompt.trim()) {
+        if (typeof prompt !== "string" || !prompt.trim()) {
             return res.status(400).json({ error: "Prompt is required." });
         }
         if (prompt.length > 2000) {
@@ -114,38 +170,28 @@ app.post("/api/route", async (req, res) => {
                 route,
                 output: localResult.content,
                 reason: localResult.reason,
+                model: "local",
+                durationMs: 0,
+                estimatedInputTokens: Math.ceil(prompt.trim().length / 4),
+                costEstimate: null,
             });
         }
 
-        const response = await client.chat.completions.create({
-            model: process.env.ALLOWED_MODELS
-                ? process.env.ALLOWED_MODELS.split(",")[0].trim()
-                : "accounts/fireworks/models/llama-v3p1-8b-instruct",
-            messages: [
-                {
-                    role: "system",
-                    content:
-                        "You are a helpful project copilot. Give concise, practical answers.",
-                },
-                {
-                    role: "user",
-                    content: prompt,
-                },
-            ],
-        });
-
-        const output =
-            response.choices?.[0]?.message?.content ||
-            "No response returned from Fireworks.";
+        const result = await runFireworks(prompt);
 
         return res.json({
             route,
-            output,
+            output: result.output,
             reason: "Used Fireworks for a more complex reasoning/generation prompt.",
+            model: result.model,
+            durationMs: result.durationMs,
+            estimatedInputTokens: result.usage?.prompt_tokens || Math.ceil(prompt.trim().length / 4),
+            costEstimate: null,
         });
     } catch (error) {
-        console.error("Full backend error:", error);
-        return res.status(500).json({ error: "Server error processing request." });
+        const failure = failureDetails(error);
+        console.error("Router request failed", { code: failure.code, status: failure.status });
+        return res.status(failure.status).json({ error: failure.message, code: failure.code, retryable: failure.retryable });
     }
 });
 
@@ -169,16 +215,7 @@ app.post("/run-tasks", async (req, res) => {
             if (route === "local") {
                 answer = handleLocal(prompt).content;
             } else {
-                const response = await client.chat.completions.create({
-                    model: process.env.ALLOWED_MODELS
-                        ? process.env.ALLOWED_MODELS.split(",")[0].trim()
-                        : "accounts/fireworks/models/llama-v3p1-8b-instruct",
-                    messages: [
-                        { role: "system", content: "You are a helpful project copilot. Give concise, practical answers." },
-                        { role: "user", content: prompt },
-                    ],
-                });
-                answer = response.choices?.[0]?.message?.content || "";
+                answer = (await runFireworks(prompt)).output;
             }
 
             results.push({ task_id: task.id || task.task_id, answer, route });
@@ -190,7 +227,7 @@ app.post("/run-tasks", async (req, res) => {
 
         return res.json({ ok: true, count: results.length });
     } catch (err) {
-        console.error("Task harness error:", err);
+        console.error("Task harness failed", { message: err instanceof Error ? err.message : "unknown" });
         return res.status(500).json({ error: "Server error processing request." });
     }
 });
