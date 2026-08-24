@@ -47,6 +47,13 @@ textarea {
   resize: vertical;
 }
 
+label {
+  display: block;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 button {
   margin-top: 14px;
   background: #5b8cff;
@@ -61,6 +68,46 @@ button {
 button:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.prompt-footer,
+.section-heading,
+.history-actions,
+.meta-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.prompt-footer {
+  justify-content: space-between;
+  color: #9aa8c7;
+  font-size: 12px;
+}
+
+.prompt-footer button,
+.secondary-button {
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+.secondary-button {
+  background: transparent;
+  border: 1px solid #53658f;
+}
+
+.section-heading {
+  justify-content: space-between;
+}
+
+.meta-grid {
+  margin-bottom: 12px;
+  gap: 8px 18px;
+}
+
+.error {
+  color: #ffb4b4;
 }
 
 .result {
