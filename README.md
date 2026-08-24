@@ -28,6 +28,9 @@ Create a `.env` file in the repository root:
 | `FIREWORKS_BASE_URL` | No | Defaults to `https://api.fireworks.ai/inference/v1` |
 | `ALLOWED_MODELS` | No | Comma-separated model allowlist; the first is selected |
 | `PORT` | No | Express port; defaults to `3001` |
+| `MAX_OUTPUT_TOKENS` | No | Server-side remote output cap; defaults to `800` |
+| `MAX_OUTPUT_CHARS` | No | Server-side response-size cap; defaults to `12000` |
+| `PROVIDER_TIMEOUT_MS` | No | Remote provider timeout; defaults to `30000` ms |
 
 Keep `.env` local. The API key belongs on the server and must never be exposed in the Vite client bundle.
 
@@ -39,6 +42,10 @@ npm run dev
 ```
 
 The React UI runs at <http://localhost:5173> and the Express API at <http://localhost:3001>.
+
+The UI shows the selected route, model, approximate input tokens, latency, and
+whether a cost estimate is configured. Run history stays in memory for the
+current tab only; it is not persisted to local storage.
 
 ## Run with Docker
 
