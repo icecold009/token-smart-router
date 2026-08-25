@@ -83,4 +83,3 @@ Feature branch: `codex/luna-router-security-contract`
 - [ ] Cost/usage displays distinguish estimates from measurements.
 - [ ] Local, browser, and restricted-provider evidence are separately recorded.
 - [ ] Feature branch is pushed and clean; `main` is untouched and unmerged.
-
