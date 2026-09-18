@@ -1,27 +1,27 @@
 # Final Luna plan — Token Smart Router
 
 Repository: `C:\Users\91829\OneDrive\Documents\GitHub\token-smart-router`
-Reviewed: clean `main` at `9cf0ecd` on 2026-08-25
-Feature branch: `codex/luna-router-security-contract`
+Reviewed: clean feature branch at `7ccda8d` on 2026-09-18
+Feature branch: `codex/typesafe-router-security-contract`
 
 ## Current verified baseline
 
-- Vite production build passes.
-- No lint, unit-test, server-test, or browser-test script exists.
+- Vite production build previously passed; rerun the complete gate after this package.
+- Native lint, unit-test, and server-test scripts now exist; browser tests remain out of scope.
 - Browser submit cancellation and request identity exist; provider timeout/output caps and safe public provider errors exist.
 
 ## Code-review conclusion
 
 ### Confirmed high-priority findings
 
-1. `POST /run-tasks` is unauthenticated, is outside the `/api/route` rate limiter, reads/writes server files, and can trigger remote-provider calls. CORS is not authorization. Make the harness CLI-only or protect it with a fail-closed internal contract before any UI work.
+1. `POST /run-tasks` was unauthenticated, was outside the `/api/route` rate limiter, read/wrote server files, and could trigger remote-provider calls. The harness is now CLI-only in this package. CORS is not authorization.
 2. Client AbortController only aborts the browser fetch. `runFireworks` creates its own controller and does not receive request disconnect/cancel state, so provider work and spend can continue.
 3. Numeric environment parsing can produce `NaN`; the in-memory IP limiter has proxy/distributed/cleanup limitations; there are no tests to freeze routing, redaction, or bounds.
 
 ## Build checklist
 
-- [ ] **1. Remove the public task-harness attack surface**
-  Files: `server/index.js`, new CLI script/module, Docker/task docs.
+- [x] **1. Remove the public task-harness attack surface**
+  Files: `server/index.js`, shared server modules, CLI script/module, Docker/task docs, and contract tests.
   What to build: Prefer moving `/run-tasks` logic into a non-HTTP CLI invoked explicitly by the benchmark container. If HTTP is truly required, require an internal secret with constant-time comparison, strict origin/network controls, aggressive rate/concurrency limits, and production-disable default.
   Acceptance: An anonymous network request cannot start provider work or write a result file; task count, schema, prompt length, and output path are bounded.
   Verify: Contract tests for absent/wrong credential, oversized/malformed tasks, concurrency, safe output directory, and production-disabled behavior.
@@ -32,8 +32,8 @@ Feature branch: `codex/luna-router-security-contract`
   Acceptance: Closing/cancelling the request aborts provider work promptly and a late completion cannot be returned or recorded.
   Verify: Fake provider tests asserting signal abortion for disconnect, explicit cancel contract if added, timeout, and success.
 
-- [ ] **3. Validate configuration fail closed**
-  Files: new config module, `.env.example`, startup.
+- [x] **3. Validate configuration fail closed**
+  Files: new config module, `.env.example`, startup, and configuration tests.
   What to build: Parse finite bounded integers, exact allowed origin(s), server-only API key, HTTPS provider base URL allowlist, and non-empty model allowlist/default. Refuse invalid production config at startup.
   Acceptance: `NaN`, infinity, negative/extreme bounds, wildcard origin, arbitrary base URL, and missing remote credentials cannot start an unsafe remote route.
   Verify: Table-driven config tests with no secret values printed.

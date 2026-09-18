@@ -7,6 +7,10 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "client": "vite",
     "server": "node server/index.js",
+    "run-tasks": "node scripts/run-tasks.js",
+    "lint": "eslint .",
+    "test": "node --test",
+    "test:server": "node --test test/api-contract.test.js test/config.test.js test/task-harness.test.js",
     "build": "vite build",
     "preview": "vite preview"
   },

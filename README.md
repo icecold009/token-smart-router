@@ -10,7 +10,7 @@ Token Smart Router is a small AI gateway that decides whether a prompt needs a r
 4. More involved prompts are sent to the configured Fireworks model.
 5. The response is returned to the UI with the selected route available for inspection.
 
-The task harness can also run a batch of prompts and write results to `output/results.json`.
+The task harness is a trusted CLI operation. It can run a bounded batch of prompts and write results to `output/results.json`; it is not exposed as an HTTP route.
 
 ## Prerequisites
 
@@ -55,13 +55,15 @@ docker compose up --build
 
 ## Run the task harness
 
-Place a task file at `input/tasks.json`, then start the service and call:
+Place a task file at `input/tasks.json`, then run the CLI:
 
 ```bash
-curl -X POST http://localhost:3001/run-tasks
+npm run run-tasks
 ```
 
 Results are written to `output/results.json`.
+
+With Docker, use `docker compose run --rm app npm run run-tasks` after the service image has been built. The task harness validates task count, prompt size, and output paths before invoking the provider.
 
 ## Technology
 
