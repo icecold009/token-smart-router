@@ -10,4 +10,6 @@ services:
       - FIREWORKS_API_KEY=${FIREWORKS_API_KEY}
       - FIREWORKS_BASE_URL=${FIREWORKS_BASE_URL:-https://api.fireworks.ai/inference/v1}
       - ALLOWED_MODELS=${ALLOWED_MODELS:-accounts/fireworks/models/llama-v3p1-8b-instruct}
+      - TASK_INPUT_FILE=/input/tasks.json
+      - TASK_OUTPUT_FILE=/output/results.json
       - PORT=3001
