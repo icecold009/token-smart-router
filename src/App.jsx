@@ -143,6 +143,9 @@ export default function App() {
           </div>
         ))}
       </div>
+      <footer style={{ padding: "1.25rem 1rem", textAlign: "center", fontSize: ".8rem", opacity: 0.75 }}>
+        <a href="https://shauryasaria.me" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textUnderlineOffset: "0.2em" }}>Personal website</a>
+      </footer>
     </div>
   );
 }
